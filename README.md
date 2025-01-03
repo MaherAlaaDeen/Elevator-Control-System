@@ -51,3 +51,26 @@ PID control offers several advantages in elevator systems:
 
 ## Mechanical Design
 The elevator was constructed using Inventor software, in which we created an outer elevator structure resembling a cell shape. Additionally, we incorporated a sliding cell that moves along three rods, utilizing linear bearings for its smooth motion. In our elevator design, we implemented a double-sided pulley mechanism to facilitate the upward and downward movement. This pulley system is connected to a DC motor of our choice. Furthermore, we incorporated a counterweight system that works in tandem with the pulley, ensuring balanced and efficient operation of the elevator.
+- This Figure represents the Elevator Cell Schematic
+
+![Cell](2.png)
+
+- This Figure represnts The Elevator cell Assembly
+
+![Cell](3.png)
+
+- This Figure represents the Elevator's Body
+
+![Body](4.png)
+
+- This Figure shows the Elevator's Body in 3D
+
+![Body 3D](5.png)
+
+- This Figure Shows the Elevator's Full Assembly:
+
+![Assembly](6.png)
+
+- This Figure shows the Elevator's Implementation:
+
+![Implementation](7.jpg)
