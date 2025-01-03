@@ -92,3 +92,7 @@ Using Easy EDA, we developed an H-Bridge configuration specifically designed to 
 
 ![Imp](11.jpg)
 
+## Control Design
+### Position PID Tuning
+The DC Motor Transfer function found using MATLAB’s System identification toolbox is the following: 
+θm(s)/Ea(s) = 72.59 / s(s+1.667)
