@@ -74,3 +74,21 @@ The elevator was constructed using Inventor software, in which we created an out
 - This Figure shows the Elevator's Implementation:
 
 ![Implementation](7.jpg)
+
+## Electrical Desing
+Using Easy EDA, we developed an H-Bridge configuration specifically designed to control the DC motor in both clockwise (cw) and counterclockwise (ccw) directions.
+
+![Schematic](12.png)
+
+- The following Figures shows the PCB Design:
+
+![PCB TOP](8.png)
+
+![PCB Bottom](9.png)
+
+![3D](10.png)
+
+- Implementation:
+
+![Imp](11.jpg)
+
