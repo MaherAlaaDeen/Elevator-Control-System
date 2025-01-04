@@ -91,5 +91,303 @@ Using Easy EDA, we developed an H-Bridge configuration specifically designed to 
 ## Control Design
 ### Position PID Tuning
 The DC Motor Transfer function found using MATLAB’s System identification toolbox is the following: 
+
 θm(s)/Ea(s) = 72.59 / s(s+1.667)
 
+- The following Figure shows the Open Loop Step Response:
+
+![OL-Step](13.png)
+
+After Tuning the PID Controller:
+
+- Step Response for the Closed Loop:
+
+![Step](16.png)
+
+- Root Locus:
+
+![RL](14.png)
+
+- Bode Plot:
+
+![BP](15.png)
+
+The Tuned Parameters for the Position PID Controller are the following:
+- Kp = 0.68181
+- Ki = 0.28391
+- Kd = 0.40933
+- Rise Time = 0.25 secs
+- Settling Time = 0.25 secs
+- Overshoot = 0.29%
+- Peak = 1.01
+- Gain margin = -inf dB @ 0 rad/s
+- Phase margin = 90 deg @ 29.7 rad/s
+
+### Velocity PID Tuning
+To control the Elevator’s velocity the following transfer function is presented:
+
+sθm(s)/Ea(s) = 72.59s/s(s+1.667) = 72.59 / s+1.667
+
+Since V(t) = dr(t)/dt in the time domain, so the velocity in the frequency domain will become V(s)=sR(s) where R represents the position vector of the elevator cell.
+
+- Step Response for the cascaded Open loop System:
+
+![Cascaded OL](17.png)
+
+After Tuning the Controller for the System:
+
+- Step Response:
+
+![SR](20.png)
+
+- Bode Plot
+
+![BP](18.png)
+
+- Root Locus
+
+![RL](19.png)
+
+The tuned Parameters for the cascaded PID controller are the following:
+- Kp = 14.9465
+- Ki = 6.176
+- Kd = 9.0429
+- Rise Time = 1.48 secs
+- Settling Time = 6.65 Secs
+- Overshoot = 3.28%
+- Peak = 1.03
+- Gain Margin = -Inf dB @ 0 rad/s
+- Phase Margin = 90 deg @ 8.97 rad/s
+
+## MATLAB Code
+- Define the transfer function for the plant
+
+```matlab
+num = [1];  % Numerator coefficients
+den = [1, 1.667, 0];  % Denominator coefficients
+Gsys = tf(num, den);  % Create the transfer function object
+```
+
+- Define PID gains for cascaded loop
+```matlab
+% Inner loop PID (C1) - Using outer loop gains
+Kp1 = 14.9465;  % Proportional gain for PID1 (outer loop parameters)
+Ki1 = 6.176;    % Integral gain for PID1 (outer loop parameters)
+Kd1 = 9.0429;   % Derivative gain for PID1 (outer loop parameters)
+C1 = pid(Kp1, Ki1, Kd1);
+
+% Outer loop PID (C2) - Position control (replacing inner loop gains)
+Kp2 = 14.9465;  % Proportional gain for PID2 (same as C1)
+Ki2 = 6.176;    % Integral gain for PID2 (same as C1)
+Kd2 = 9.0429;   % Derivative gain for PID2 (same as C1)
+C2 = pid(Kp2, Ki2, Kd2);
+```
+
+- Cascaded control:
+```matlab
+% The inner loop (using outer loop parameters) is closed first with Gsys and C1
+inner_loop = feedback(Gsys * C1, 1);
+
+% The outer loop uses the closed inner loop as its plant
+sys = feedback(inner_loop * C2, 1);
+```
+
+- Step Response
+
+```matlab
+t_step = 0:0.01:10;  % Define time vector for step response
+[y_step, t_step] = step(sys, t_step);
+figure;
+plot(t_step, y_step);
+title('Step Response (Cascaded PID Control)');
+xlabel('Time (s)');
+ylabel('Amplitude');
+grid on;
+```
+
+- Impulse Response
+```matlab
+[y_impulse, t_impulse] = impulse(sys);
+figure;
+plot(t_impulse, y_impulse);
+title('Impulse Response (Cascaded PID Control)');
+xlabel('Time (s)');
+ylabel('Amplitude');
+grid on;
+```
+
+- Compute performance metrics for step response
+```matlab
+rise_time_index = find(y_step >= 0.9, 1);  % Approximate rise time threshold
+settling_time_index = find(abs(y_step - 1) < 0.02, 1, 'last');
+rise_time = t_step(rise_time_index);
+settling_time = t_step(settling_time_index);
+percent_overshoot = (max(y_step) - 1) * 100;
+
+fprintf('Rise Time (Step Response): %.2f seconds\n', rise_time);
+fprintf('Settling Time (Step Response): %.2f seconds\n', settling_time);
+fprintf('Percent Overshoot (Step Response): %.2f%%\n', percent_overshoot);
+```
+
+- Root Locus
+```matlab
+figure;
+rlocus(sys);
+title('Root Locus (Cascaded PID Control)');
+```
+
+- Bode Plot
+```matlab
+figure;
+bode(sys);
+title('Bode Plot (Cascaded PID Control)');
+```
+
+## Arduino Code
+
+- Include Libraries and define params:
+
+```c
+#include <PID_v2.h>
+
+// Define motor pins
+const int motorPinFWD = 6;  // Forward motor pin
+const int motorPinBWD = 7;  // Backward motor pin
+const int trigPin = 4;      // Trigger pin for ultrasonic sensor
+const int echoPin = 5;      // Echo pin for ultrasonic sensor
+const int encoderPin = 7;   // Encoder pin for speed measurement
+const int LimitTop = 2;     // Top limit switch
+const int LimitBottom = 3;  // Bottom limit switch
+
+unsigned int pulses_per_turn = 20;
+double rotation;
+int count = 0;
+long duration;
+long distance;
+
+// Define position PID constants
+double Kp_position = 0.68181;
+double Ki_position = 0.28391;
+double Kd_position = 0.40933;
+
+// Define speed PID constants
+double Kp_speed = 14.9465;
+double Ki_speed = 6.176;
+double Kd_speed = 9.0429;
+
+// Define position and speed setpoints and inputs
+double positionSetpoint = 150;  // Desired position in cm
+double positionInput = 0.0;     // Current position
+double speedSetpoint = 0.0;     // Desired speed
+
+// Define PID output variables
+double positionOutput = 0.0;
+double speedOutput = 0.0;
+
+// Define motor control limits
+const int motorMin = 0;
+const int motorMax = 255;
+
+// Define PID controller objects
+PID positionPID(&positionInput, &speedSetpoint, &positionSetpoint, Kp_position, Ki_position, Kd_position, DIRECT);
+PID speedPID(&speedSetpoint, &speedOutput, &speedInput, Kp_speed, Ki_speed, Kd_speed, DIRECT);
+```
+
+- Setup:
+
+```c
+void setup() {
+  Serial.begin(9600);
+  
+  // Initialize motor pins as outputs
+  pinMode(motorPinFWD, OUTPUT);
+  pinMode(motorPinBWD, OUTPUT);
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  pinMode(encoderPin, INPUT);
+  pinMode(LimitTop, INPUT);
+  pinMode(LimitBottom, INPUT);
+
+  // Set output limits for PID controllers
+  positionPID.SetOutputLimits(motorMin, motorMax);
+  speedPID.SetOutputLimits(motorMin, motorMax);
+
+  // Set sample time for PID controllers
+  positionPID.SetSampleTime(10);
+  speedPID.SetSampleTime(10);
+
+  // Enable automatic mode for PID controllers
+  positionPID.SetMode(AUTOMATIC);
+  speedPID.SetMode(AUTOMATIC);
+}
+```
+
+- Loop:
+
+```c
+void loop() {
+  // Read position from ultrasonic sensor
+  positionInput = readPosition();
+
+  // Compute position PID control to set speed setpoint
+  positionPID.Compute();
+
+  // Compute speed PID control to adjust motor output
+  speedPID.Compute();
+
+  // Motor control based on speed output
+  if (digitalRead(LimitTop) == HIGH && positionSetpoint > positionInput) {
+    analogWrite(motorPinFWD, speedOutput);
+    analogWrite(motorPinBWD, LOW);
+  } else if (digitalRead(LimitBottom) == HIGH && positionSetpoint < positionInput) {
+    analogWrite(motorPinBWD, speedOutput);
+    analogWrite(motorPinFWD, LOW);
+  } else {
+    analogWrite(motorPinFWD, LOW);
+    analogWrite(motorPinBWD, LOW);
+  }
+}
+```
+
+- Function to read position with ultrasonic
+
+```c
+double readPosition() {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  
+  duration = pulseIn(echoPin, HIGH);
+  distance = duration * 0.034 / 2;
+  Serial.print("Distance: ");
+  Serial.print(distance);
+  Serial.println(" cm");
+  return distance;
+}
+```
+
+- Function to read motor speed from encoder:
+
+```c
+double readSpeed() {
+  static unsigned long lastTime = 0;
+  static int lastCount = 0;
+  unsigned long currentTime = millis();
+  int currentCount = count;  // Assume count is updated by an interrupt
+
+  double timeDiff = (currentTime - lastTime) / 1000.0;  // Time difference in seconds
+  double rpm = ((currentCount - lastCount) / (double)pulses_per_turn) * 60.0 / timeDiff;
+
+  lastTime = currentTime;
+  lastCount = currentCount;
+
+  Serial.print("Speed (RPM): ");
+  Serial.println(rpm);
+  return rpm;
+}
+```
+
+## Conclusion
+In conclusion, the cascaded control system for elevator operation effectively improved positioning accuracy and speed regulation, resulting in smooth, efficient, and comfortable transportation. The position controller adjusted the speed setpoint to achieve precise floor-leveling, while the speed controller maintained consistent motion without abrupt changes. This approach enhances passenger safety and comfort while ensuring reliable performance. Future improvements could include optimizing PID gains, integrating advanced control strategies, and incorporating safety mechanisms to further enhance system efficiency and robustness.
